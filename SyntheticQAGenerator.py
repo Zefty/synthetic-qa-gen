@@ -7,9 +7,6 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForSeque
 from datasets import load_dataset
 import sentencepiece
 
-import random
-random.seed(42)
-
 class SyntheticQAGenerator:
     def __init__(self, model_dir = None):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -34,11 +31,28 @@ class SyntheticQAGenerator:
         return [answer['summary_text'] for answer in summaries]
     
     def generate_questions(self, passages, answers):
-        inputs = ["{} {} {} {}".format(
-            qa_gen.ANSWER_TOKEN, pair[1], qa_gen.CONTEXT_TOKEN, pair[0]
+        inputs = ['{} {} {} {}'.format(
+            self.ANSWER_TOKEN, pair[1], self.CONTEXT_TOKEN, pair[0]
         ) for pair in zip(passages, answers)]
         questions = self.question_generator_pipeline(inputs, truncation = True)
         return [question['generated_text'][0:question['generated_text'].find('?') + 1] for question in questions]
+
+def generate(covid_dump, split, chunk_size = 10):
+    qa_gen = SyntheticQAGenerator()
+    source = open('{}.source'.format(split), 'w')
+    target = open('{}.target'.format(split), 'w')
+    numberChunks = math.ceil(len(covid_dump) / chunk_size) 
+    for i in tqdm(range(numberChunks), position = 0, leave = True):
+        passages = covid_dump['text'][i*chunk_size:(i + 1)*chunk_size]
+        answers = qa_gen.generate_answers(passages)
+        questions = qa_gen.generate_questions(passages, answers)
+        
+        for j in zip(answers, questions):
+            if j[0] == '' or j[1] == '':
+                continue 
+        
+            source.write(j[1] + '\n')
+            target.write(j[0] + '\n')
 
 def main():
     parser = argparse.ArgumentParser()
@@ -49,34 +63,46 @@ def main():
         required=True,
         help="Path to a tab-separated csv file with columns 'title' and 'text'.",
     )
+    parser.add_argument(
+        "--shard",
+        default=False,
+        type=bool,
+        required=False,
+        help="Whether to process the csv file in chunks/shards.",
+    )
+    parser.add_argument(
+        "--start_shard",
+        default=0,
+        type=int,
+        required=False,
+        help="Starting index for chunk/shard of the csv file.",
+    )
+    parser.add_argument(
+        "--num_shards",
+        default=20,
+        type=int,
+        required=False,
+        help="Number of chunks/shards to process for the csv file.",
+    )
+    parser.add_argument(
+        "--chunk_size",
+        default=10,
+        type=int,
+        required=False,
+        help="Number of passages to process concurrently. For generating question/answer pairs.",
+    )
     args = parser.parse_args()
-
-    qa_gen = SyntheticQAGenerator()
-
-    train_source = open('train.source', 'w')
-    train_target = open('train.target', 'w')
-    val_source = open('val.source', 'w')
-    val_target = open('val.target', 'w')
-
+    
     covid_dump = load_dataset('csv', data_files = args.csv_path, delimiter = '\t', column_names = ['title', 'text'])
-    chunkSize = 10
-    numberChunks = math.ceil(len(covid_dump['train']) / chunkSize) 
-    for i in tqdm(range(numberChunks), position = 0, leave = True):
-        passages = covid_dump['train']['text'][i*chunkSize:(i + 1)*chunkSize]
-        answers = qa_gen.generate_answers(passages)
-        questions = qa_gen.generate_questions(passages, answers)
-        
-        for j in zip(answers, questions):
-            if j[0] == '' or j[1] == '':
-                continue 
-            
-            split = random.uniform(0, 1)
-            if split > 0.1:
-                train_source.write(j[1] + '\n')
-                train_target.write(j[0] + '\n')
-            else:
-                val_source.write(j[1] + '\n')
-                val_target.write(j[0] + '\n')
+    covid_dump = covid_dump['train'].train_test_split(test_size = 0.1, shuffle = False, seed = 42)
+
+    if args.shard:
+        for i in range(args.start_shard, args.num_shards):
+            generate(covid_dump['train'].shard(num_shards = args.num_shards, index = i), split = 'train', chunk_size = args.chunk_size)
+            generate(covid_dump['test'].shard(num_shards = args.num_shards, index = i), split = 'val', chunk_size = args.chunk_size)
+    else:
+        generate(covid_dump['train'], split = 'train')
+        generate(covid_dump['test'], split = 'val')
 
 if __name__ == "__main__":
     main()
