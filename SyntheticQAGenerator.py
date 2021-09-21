@@ -78,6 +78,13 @@ def main():
         help="Starting index for chunk/shard of the csv file.",
     )
     parser.add_argument(
+        "--end_shard",
+        default=20,
+        type=int,
+        required=False,
+        help="Ending index for chunk/shard of the csv file.",
+    )
+    parser.add_argument(
         "--num_shards",
         default=20,
         type=int,
@@ -98,6 +105,8 @@ def main():
 
     if args.shard:
         for i in range(args.start_shard, args.num_shards):
+            if i == args.end_shard:
+                break
             generate(covid_dump['train'].shard(num_shards = args.num_shards, index = i), split = 'train_chunk_{}'.format(i), chunk_size = args.chunk_size)
             generate(covid_dump['test'].shard(num_shards = args.num_shards, index = i), split = 'val_chunk_{}'.format(i), chunk_size = args.chunk_size)
     else:
