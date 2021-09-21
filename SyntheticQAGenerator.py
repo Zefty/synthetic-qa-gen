@@ -1,8 +1,10 @@
 import argparse
 import csv
+import math
 from tqdm import tqdm
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForSequenceClassification, pipeline
+from datasets import load_dataset
 import sentencepiece
 
 import random
@@ -25,43 +27,18 @@ class SyntheticQAGenerator:
         self.qg_tokenizer = AutoTokenizer.from_pretrained(QG_PRETRAINED)
         self.qg_model = AutoModelForSeq2SeqLM.from_pretrained(QG_PRETRAINED)
         self.qg_model.to(self.device)
+        self.question_generator_pipeline = pipeline("text2text-generation", model = self.qg_model, tokenizer = self.qg_tokenizer, device = 0)
+
+    def generate_answers(self, passages):
+        summaries = self.answer_summarizer_pipeline(['summarize: ' + passage for passage in passages], truncation = True)
+        return [answer['summary_text'] for answer in summaries]
     
-    def generate_answer(self, passage, use_pipeline = True):
-        if use_pipeline: 
-            return self.answer_summarizer_pipeline(passage, truncation = True)[0]['summary_text']
-        else: 
-            inputs = self.as_tokenizer.encode("summarize: " + passage, return_tensors = "pt", max_length = 512, truncation = True).to(0)
-            outputs = self.as_model.generate(inputs, length_penalty = 2.0, num_beams = 4, early_stopping = True)
-            return self.as_tokenizer.decode(outputs[0]).replace('</s>', '')
-
-    def generate_answers(self, passages, use_pipeline = True):
-        summaries = []
-        if use_pipeline:
-            summaries.extend(self.answer_summarizer_pipeline(passages, truncation = True))
-            return summaries
-        else: 
-            for passage in passages:
-                inputs = self.as_tokenizer.encode("summarize: " + passage, return_tensors = "pt", max_length = 512, truncation = True).to(0)
-                outputs = self.as_model.generate(inputs, length_penalty = 2.0, num_beams = 4, early_stopping = True)
-                summaries.append(self.as_tokenizer.decode(outputs[0]))
-            return summaries
-
-    def generate_question(self, passage, answer):
-        qg_input = "{} {} {} {}".format(
-            self.ANSWER_TOKEN, answer, self.CONTEXT_TOKEN, passage
-        )
-        self.qg_model.eval()
-        encoded_input = self.qg_tokenizer(qg_input, padding = 'max_length', max_length = self.SEQ_LENGTH, truncation = True, return_tensors = "pt").to(self.device)
-        with torch.no_grad():
-            output = self.qg_model.generate(input_ids = encoded_input["input_ids"])
-        question = self.qg_tokenizer.decode(output[0], skip_special_tokens = True)
-        return question[0:question.find('?') + 1]
-
-    def make_dict(self, question, answer):
-        qa = {}
-        qa["question"] = question
-        qa["answer"] = answer
-        return qa
+    def generate_questions(self, passages, answers):
+        inputs = ["{} {} {} {}".format(
+            qa_gen.ANSWER_TOKEN, pair[1], qa_gen.CONTEXT_TOKEN, pair[0]
+        ) for pair in zip(passages, answers)]
+        questions = self.question_generator_pipeline(inputs, truncation = True)
+        return [question['generated_text'][0:question['generated_text'].find('?') + 1] for question in questions]
 
 def main():
     parser = argparse.ArgumentParser()
@@ -81,27 +58,25 @@ def main():
     val_source = open('val.source', 'w')
     val_target = open('val.target', 'w')
 
-    with open(args.csv_path) as csv_file:
-        no_of_lines = sum(1 for row in csv_file)
-
-    with open(args.csv_path) as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter = '\t')
-
-        for index, row in tqdm(enumerate(csv_reader), total = no_of_lines):
-
-            answer = qa_gen.generate_answer(row[1], use_pipeline = False)
-            question = qa_gen.generate_question(row[1], answer)
-
-            if answer == '' or question == '':
+    covid_dump = load_dataset('csv', data_files = args.csv_path, delimiter = '\t', column_names = ['title', 'text'])
+    chunkSize = 10
+    numberChunks = math.ceil(len(covid_dump['train']) / chunkSize) 
+    for i in tqdm(range(numberChunks), position = 0, leave = True):
+        passages = covid_dump['train']['text'][i*chunkSize:(i + 1)*chunkSize]
+        answers = qa_gen.generate_answers(passages)
+        questions = qa_gen.generate_questions(passages, answers)
+        
+        for j in zip(answers, questions):
+            if j[0] == '' or j[1] == '':
                 continue 
-
+            
             split = random.uniform(0, 1)
             if split > 0.1:
-                train_source.write(question + '\n')
-                train_target.write(answer + '\n')
+                train_source.write(j[1] + '\n')
+                train_target.write(j[0] + '\n')
             else:
-                val_source.write(question + '\n')
-                val_target.write(answer + '\n')
+                val_source.write(j[1] + '\n')
+                val_target.write(j[0] + '\n')
 
 if __name__ == "__main__":
     main()
