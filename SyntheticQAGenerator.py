@@ -98,8 +98,8 @@ def main():
 
     if args.shard:
         for i in range(args.start_shard, args.num_shards):
-            generate(covid_dump['train'].shard(num_shards = args.num_shards, index = i), split = 'train', chunk_size = args.chunk_size)
-            generate(covid_dump['test'].shard(num_shards = args.num_shards, index = i), split = 'val', chunk_size = args.chunk_size)
+            generate(covid_dump['train'].shard(num_shards = args.num_shards, index = i), split = 'train_chunk_{}'.format(i), chunk_size = args.chunk_size)
+            generate(covid_dump['test'].shard(num_shards = args.num_shards, index = i), split = 'val_chunk_{}'.format(i), chunk_size = args.chunk_size)
     else:
         generate(covid_dump['train'], split = 'train')
         generate(covid_dump['test'], split = 'val')
