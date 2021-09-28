@@ -9,9 +9,10 @@ def CreateRAGTrainingData(indirectory, outdirectory, files):
         with open('{}/{}'.format(outdirectory, file), 'w', encoding = 'utf8') as outfile:
             with open('{}/{}'.format(indirectory, file), 'r', encoding = 'utf8') as infile:
                     while count < 100000 and infile:
-                        inputLine = infile.readline()
+                        inputLine = infile.readline().strip()
                         if len(inputLine) > 1:
                             outfile.write(inputLine)
+                            outfile.write('\n')
                             count = count + 1
 
 def CreateRAGTrainingData2(indirectories, num_rows, outdirectory, files):
@@ -21,10 +22,10 @@ def CreateRAGTrainingData2(indirectories, num_rows, outdirectory, files):
                 count = 0
                 with open('{}/{}'.format(indirectory, file), 'r', encoding = 'utf8') as infile:
                     while count < num_rows[index] and infile:
-                        inputLine = infile.readline()
-
+                        inputLine = infile.readline().strip()
                         if len(inputLine) > 1:
                             outfile.write(inputLine)
+                            outfile.write('\n')
                             count = count + 1
 
 # For processing the Q-covid data (short answers)
