@@ -5,18 +5,27 @@ import re
 
 def CreateRAGTrainingData(indirectory, outdirectory, files):
     for file in files:
+        count = 0
         with open('{}/{}'.format(outdirectory, file), 'w', encoding = 'utf8') as outfile:
             with open('{}/{}'.format(indirectory, file), 'r', encoding = 'utf8') as infile:
-                    for i in range(100000):
-                        outfile.write(infile.readline())
+                    while count < 100000 and infile:
+                        inputLine = infile.readline()
+                        if len(inputLine) > 1:
+                            outfile.write(inputLine)
+                            count = count + 1
 
 def CreateRAGTrainingData2(indirectories, num_rows, outdirectory, files):
     for file in files:
         with open('{}/{}'.format(outdirectory, file), 'w', encoding = 'utf8') as outfile:
             for index, indirectory in enumerate(indirectories):
+                count = 0
                 with open('{}/{}'.format(indirectory, file), 'r', encoding = 'utf8') as infile:
-                        for i in range(num_rows[index]):
-                            outfile.write(infile.readline())
+                    while count < num_rows[index] and infile:
+                        inputLine = infile.readline()
+
+                        if len(inputLine) > 1:
+                            outfile.write(inputLine)
+                            count = count + 1
 
 # For processing the Q-covid data (short answers)
 indirectory = r'data/input_data/Q-covid'
