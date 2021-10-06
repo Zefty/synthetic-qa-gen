@@ -37,8 +37,9 @@ class SyntheticQAGenerator:
         questions = self.question_generator_pipeline(inputs, truncation = True)
         return [question['generated_text'][0:question['generated_text'].find('?') + 1] for question in questions]
 
-def generate(covid_dump, split, chunk_size = 10):
+def generate(covid_dump, split, chunk_size = 5):
     qa_gen = SyntheticQAGenerator()
+    print(qa_gen.device)
     source = open('{}.source'.format(split), 'w')
     target = open('{}.target'.format(split), 'w')
     numberChunks = math.ceil(len(covid_dump) / chunk_size) 
@@ -103,13 +104,16 @@ def main():
     covid_dump = load_dataset('csv', data_files = args.csv_path, delimiter = '\t', column_names = ['title', 'text'])
     covid_dump = covid_dump['train'].train_test_split(test_size = 0.1, shuffle = False, seed = 42)
 
+    print('[Generating Synthetic QA Data]')
     if args.shard:
         for i in range(args.start_shard, args.num_shards):
+            print('[Shard: {}]'.format(i))
             if i == args.end_shard:
                 break
             generate(covid_dump['train'].shard(num_shards = args.num_shards, index = i), split = 'train_chunk_{}'.format(i), chunk_size = args.chunk_size)
             generate(covid_dump['test'].shard(num_shards = args.num_shards, index = i), split = 'val_chunk_{}'.format(i), chunk_size = args.chunk_size)
     else:
+        print('[Full Generation]')
         generate(covid_dump['train'], split = 'train')
         generate(covid_dump['test'], split = 'val')
 
