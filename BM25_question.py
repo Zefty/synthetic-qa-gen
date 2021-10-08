@@ -52,10 +52,10 @@ BM25 = BM25Okapi(BM25Corpus['text'].tolist())
 
 
 ############################# Train.source
-qcovidsource = pd.read_csv('data/input_data/Q-covid/train.source', names = ['question'])
+qcovidsource = pd.read_csv('data/input_data/Q-covid-val/train.source', names = ['question'])
 
 topK = 1 
-textfile = open("data/output_data/Q-covid-BM25/train.source", "w")
+textfile = open("data/output_data/Q-covid-BM25-val/train.source", "w")
 for idx, r in tqdm(qcovidsource.iterrows(), total = qcovidsource.shape[0]): # Iterate each synthetic QA pair in QA.csv and convert into DPR data format above 
     question = preprocess(r['question'])
     docScores = BM25.get_scores(question)
@@ -65,14 +65,14 @@ textfile.close()
 
 
 
-############################# Val.source
-qcovidsource = pd.read_csv('data/input_data/Q-covid/val.source', names = ['question'])
+# ############################# Val.source
+# qcovidsource = pd.read_csv('data/input_data/Q-covid/val.source', names = ['question'])
 
-topK = 1 
-textfile = open("data/output_data/Q-covid-BM25/val.source", "w")
-for idx, r in tqdm(qcovidsource.iterrows(), total = qcovidsource.shape[0]): # Iterate each synthetic QA pair in QA.csv and convert into DPR data format above 
-    question = preprocess(r['question'])
-    docScores = BM25.get_scores(question)
-    idxTopKDocs = np.argsort(docScores)[::-1][:topK]
-    textfile.write(r['question'] + ' <BM25> ' + knowledgebase['text'][idxTopKDocs].to_list()[0] + "\n")
-textfile.close()
+# topK = 1 
+# textfile = open("data/output_data/Q-covid-BM25/val.source", "w")
+# for idx, r in tqdm(qcovidsource.iterrows(), total = qcovidsource.shape[0]): # Iterate each synthetic QA pair in QA.csv and convert into DPR data format above 
+#     question = preprocess(r['question'])
+#     docScores = BM25.get_scores(question)
+#     idxTopKDocs = np.argsort(docScores)[::-1][:topK]
+#     textfile.write(r['question'] + ' <BM25> ' + knowledgebase['text'][idxTopKDocs].to_list()[0] + "\n")
+# textfile.close()
