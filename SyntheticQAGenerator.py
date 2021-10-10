@@ -8,15 +8,24 @@ from datasets import load_dataset
 import sentencepiece
 
 class SyntheticQAGenerator:
-    def __init__(self, model_dir = None):
+    '''Unambiguous synthetic question-answer generator via abstractive summarisation.
+    This class uses a SCI-TLDR model to summarise passages to be used as a synthetic answer.
+    This class uses a T5 model to generate a synthetic question.  
+    '''
+
+    def __init__(self):
+        '''initialise class 
+        '''
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+        # SCI-TLDR model for answer generation via passage summarisation
         AS_PRETRAINED = 'lrakotoson/scitldr-catts-xsum-ao'
         self.as_tokenizer = AutoTokenizer.from_pretrained(AS_PRETRAINED)
         self.as_model = AutoModelForSeq2SeqLM.from_pretrained(AS_PRETRAINED)
         self.as_model.to(self.device)
         self.answer_summarizer_pipeline = pipeline("summarization", model = self.as_model, tokenizer = self.as_tokenizer, device = 0) # Device = 0 allows us to use the GPU
 
+        # T5 model for question generation 
         QG_PRETRAINED = 'iarfmoose/t5-base-question-generator'
         self.ANSWER_TOKEN = '<answer>'
         self.CONTEXT_TOKEN = '<context>'
@@ -25,12 +34,21 @@ class SyntheticQAGenerator:
         self.qg_model = AutoModelForSeq2SeqLM.from_pretrained(QG_PRETRAINED)
         self.qg_model.to(self.device)
         self.question_generator_pipeline = pipeline("text2text-generation", model = self.qg_model, tokenizer = self.qg_tokenizer, device = 0)
-
+    
     def generate_answers(self, passages):
+        '''generate_answers takes a list of passages and generates a summary for each passage
+        :param passages: [list] 
+        :output answers: [list]
+        '''
         summaries = self.answer_summarizer_pipeline(['summarize: ' + passage for passage in passages], truncation = True)
         return [answer['summary_text'] for answer in summaries]
     
     def generate_questions(self, passages, answers):
+        '''generate_questions takes a list of passages and a list of answers to generate a list of questions
+        :param passages: [list] 
+        :param answers: [list] 
+        :output questions: [list]
+        '''
         inputs = ['{} {} {} {}'.format(
             self.ANSWER_TOKEN, pair[1], self.CONTEXT_TOKEN, pair[0]
         ) for pair in zip(passages, answers)]
