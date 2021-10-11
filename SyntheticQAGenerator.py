@@ -55,21 +55,36 @@ class SyntheticQAGenerator:
         questions = self.question_generator_pipeline(inputs, truncation = True)
         return [question['generated_text'][0:question['generated_text'].find('?') + 1] for question in questions]
 
-def generate(covid_dump, split, chunk_size = 5):
+def generate(data, split, chunk_size = 5):
+    '''generate takes a list of passages and generates a list of synthetic QA pairs
+    :param data: [list] 
+    :param split: str
+    :param chunk_size: int
+    '''
+    # Create synthetic qa generator object from class 
+    # The class contains a SCI-TLDR model for answer sumarisation
+    # The class contains a T5 model for question generation 
     qa_gen = SyntheticQAGenerator()
-    print(qa_gen.device)
+
+    # Open files for saving QA pairs
     source = open('{}.source'.format(split), 'w')
     target = open('{}.target'.format(split), 'w')
-    numberChunks = math.ceil(len(covid_dump) / chunk_size) 
+
+    # Process passages in parallel given chunk_size 
+    numberChunks = math.ceil(len(data) / chunk_size) 
     for i in tqdm(range(numberChunks), position = 0, leave = True):
-        passages = covid_dump['text'][i*chunk_size:(i + 1)*chunk_size]
+        passages = data['text'][i*chunk_size:(i + 1)*chunk_size]
+
+        # Generate synthetic QA pair
         answers = qa_gen.generate_answers(passages)
         questions = qa_gen.generate_questions(passages, answers)
         
+        # Remove empty results
         for j in zip(answers, questions):
             if j[0] == '' or j[1] == '':
                 continue 
-        
+
+            # Save synthetic QA pairs
             source.write(j[1] + '\n')
             target.write(j[0] + '\n')
 
